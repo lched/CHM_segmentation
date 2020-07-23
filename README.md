@@ -11,4 +11,4 @@ The audio file should be in a dataset organized as follows (consistent with [MSA
 	     /features (empty initially)
 	     /references
 
-To analyse a single file outside of a dataset, segment_full_analysis.py (coming soon) shoud be used instead.
+To analyse a single file outside of a dataset, segment_full_analysis.py shoud be used instead.

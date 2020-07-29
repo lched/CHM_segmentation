@@ -86,8 +86,8 @@ def segmenter(audio_filename, sample_rate=22050,
             os.path.dirname(os.path.dirname(audio_filename)),
             'estimations',
             'beats_and_downbeats',
-            os.path.splitext(os.path.basename(audio_filename))[0]
-            + '_madmom_estimated_beats.lab')
+            os.path.splitext(os.path.basename(audio_filename))[0] + '.lab'
+            )
         try:
             # Try to open beats from file if already computed
             beats_vector = madmom.io.load_beats(beats_file)
@@ -109,7 +109,7 @@ def segmenter(audio_filename, sample_rate=22050,
                 beats_vector = madmom.io.load_beats(beats_file)
                 downbeats_vector = madmom.io.load_beats(beats_file,
                                                         downbeats=True)
-                print('\tBeats and downbeats successfully  loaded from file:'
+                print('\tBeats and downbeats successfully loaded from file:'
                       '{}'.format(beats_file))
             except OSError:
                 print('Beats file failed to load: {}'.format(beats_file))
@@ -117,6 +117,7 @@ def segmenter(audio_filename, sample_rate=22050,
         elif isinstance(beats_file, tuple):
             beats_vector = beats_file[0]
             downbeats_vector = beats_file[1]
+            print('\tBeats and downbeats successfully loaded from tuple')
         else:
             raise ValueError('Input beats and downbeats must be either a '
                              'filename or a tuple of numpy arrays')
@@ -176,7 +177,7 @@ def segmenter(audio_filename, sample_rate=22050,
         os.path.dirname(os.path.dirname(audio_filename)),
         'estimations',
         'segments',
-        os.path.splitext(os.path.basename(audio_filename))[0]
+        os.path.splitext(os.path.basename(audio_filename))[0] + '.lab'
         )
     save_segments(estimated_boundaries_vector,
                   estimated_boundaries_fname)
@@ -522,7 +523,7 @@ def check_beats_downbeats_alignment(beats_vector, downbeats_vector):
     db_closest_beat_vector = np.zeros(np.size(downbeats_vector))
 
     for i in range(len(downbeats_vector)):
-        if not(downbeats_vector[i] in beats_vector):
+        if not downbeats_vector[i] in beats_vector:
             min_ind = np.argmin(abs(beats_vector - downbeats_vector[i]))
             min_val = min(abs(beats_vector - downbeats_vector[i]))
             max_error = max(max_error, min_val)
@@ -635,8 +636,8 @@ def beats_per_bar(beats_vector, downbeats_vector):
     """
 
     for downbeat in downbeats_vector:
-        if not(any(beats_vector == downbeat)):
-            return('Error : every downbeat should be a beat !\n')
+        if not any(beats_vector == downbeat):
+            return 'Error : every downbeat should be a beat !\n'
 
     nb_bars = len(downbeats_vector) - 1
     nb_beats = len(beats_vector)
@@ -646,8 +647,8 @@ def beats_per_bar(beats_vector, downbeats_vector):
 
     n_bar = 0
     for i in range(nb_beats):
-        if (n_bar < nb_bars + 1):
-            if (beats_vector[i] == downbeats_vector[n_bar]):
+        if n_bar < nb_bars + 1:
+            if beats_vector[i] == downbeats_vector[n_bar]:
                 downbeat_index_vector[n_bar] = i
                 n_bar += 1
         beats_per_bar_vector[n_bar] = beats_per_bar_vector[n_bar] + 1
@@ -738,9 +739,9 @@ def cancel_peaks(vector):
     for i in range(1, len(vector)-1):
         diff_last = smooth_vector[i] - smooth_vector[i-1]
         diff_next = smooth_vector[i+1] - smooth_vector[i]
-        if ((diff_last > 0) & (diff_next < 0)):
+        if (diff_last > 0) & (diff_next < 0):
             smooth_vector[i] = smooth_vector[i] - min(diff_last, -diff_next)
-        elif ((diff_last < 0) & (diff_next > 0)):
+        elif (diff_last < 0) & (diff_next > 0):
             smooth_vector[i] = smooth_vector[i] + min(-diff_last, diff_next)
 
     return smooth_vector
@@ -763,7 +764,7 @@ def select_peaks(vector):
 
     peaks_vector = np.zeros(len(vector))
     for i in range(1, len(vector)-1):
-        if((vector[i] > vector[i-1]) & (vector[i] >= vector[i+1])):
+        if (vector[i] > vector[i-1]) & (vector[i] >= vector[i+1]):
             peaks_vector[i] = vector[i]
 
     return peaks_vector
@@ -886,7 +887,7 @@ def compute_novelty_curve(feature_SSM, kernel_size=64,
         raise ValueError("Error : The parameter.kernel.type must be either "
                          "''H-H'', ''H-N'' or ''N-H''.\n")
 
-    if (len(feature_SSM) != len(feature_SSM[0])):
+    if len(feature_SSM) != len(feature_SSM[0]):
         raise ValueError('Error : A SSM is expected to be square! \n')
 
     hN = int(np.ceil(kernel_size/2))
@@ -933,7 +934,7 @@ def checker_gauss(N):
             y[i-1, j-1] = np.exp(-(((i-hN)/hN)**2 + (((j-hN)/hN)**2))*4)
 
     # The other corners are defined by symetry
-    if (N % 2 == 0):
+    if N % 2 == 0:
         # Lower right
         y[hN:, hN:] = y[hN-1::-1, hN-1::-1]
         # Upper right
@@ -1181,7 +1182,7 @@ def estimate_downbeats_madmom_1(filename, reference_beats_filename):
 
 
 def save_beats(beats_vector, downbeats_vector, filename):
-
+    
     indexed_beats = np.zeros((len(beats_vector), 2))
     indexed_beats[:, 0] = beats_vector
 
@@ -1207,5 +1208,5 @@ def save_segments(segments_boundaries, filename):
             segments_boundaries[segment_number],
             segments_boundaries[segment_number+1],
             segment_number+1)
-    with open(filename, 'w') as f:
-        f.write(file_data)
+    with open(filename, 'w') as segment_file:
+        segment_file.write(file_data)

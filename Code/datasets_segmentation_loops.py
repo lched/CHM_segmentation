@@ -801,17 +801,31 @@ def DTL1000_segmentation_loop(DTL1000_dataset_path):
         print('({}) Computing: {}'.format(song_number,
                                           filenames_list[song_number]))
 
-        # Compute estimated segments boundaries
         try:
-            audio_fname = os.path.join(DTL1000_dataset_path,
-                                       'audio',
-                                       filenames_list[song_number] + '.wav')
-            estimated_segments = CHM.segmenter(audio_fname)[0]
+            # Open results if already computed
+            estimated_boundaries_fname = os.path.join(
+                DTL1000_dataset_path,
+                'estimations',
+                'segments',
+                os.path.splitext(os.path.basename(filenames_list[song_number]))[0]
+                + '.lab'
+                )
+            estimated_segments = mir_eval.io.load_labeled_intervals(
+                estimated_boundaries_fname)[0]
+            print('Segments already computed')
         except FileNotFoundError:
-            audio_fname = os.path.join(DTL1000_dataset_path,
-                                       'audio',
-                                       filenames_list[song_number] + '.aiff')
-            estimated_segments = CHM.segmenter(audio_fname)[0]
+        # Compute estimated segments boundaries
+            try:
+                audio_fname = os.path.join(DTL1000_dataset_path,
+                                           'audio',
+                                           filenames_list[song_number] + '.wav')
+                estimated_segments = CHM.segmenter(audio_fname)[0]
+            except FileNotFoundError:
+                audio_fname = os.path.join(DTL1000_dataset_path,
+                                           'audio',
+                                           filenames_list[song_number] + '.aiff')
+                estimated_segments = CHM.segmenter(audio_fname)[0]
+
 
         # Get ground truth boundaries for evaluation
         reference_segments_fname = os.path.join(
@@ -856,4 +870,6 @@ def DTL1000_segmentation_loop(DTL1000_dataset_path):
 #                           features=['chroma_stft', 'mfcc'])
 # harmonix_segmentation_loop('/media/leo/42A45DCCA45DC359/MIR_DATASETS/Harmonix/'
 #                            'harmonixset-master/dataset')
-DTL1000_segmentation_loop('/media/leo/42A45DCCA45DC359/MIR_DATASETS/DTL1000')
+(F05_vector, P05_vector, R05_vector,
+ F3_vector, P3_vector, R3_vector) = DTL1000_segmentation_loop(
+     '/media/leo/42A45DCCA45DC359/MIR_DATASETS/DTL1000')

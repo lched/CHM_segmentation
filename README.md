@@ -1,6 +1,6 @@
 # CHM_segmentation
 Estimate segments boundaries of a song. Does not estimate labels.
-Based on :
+Based on:
     *C. Gaudefroy H. Papadopoulos and M. Kowalski, “A Multi-Dimensional Meter-Adaptive Method For Automatic Segmentation Of Music”, in CBMI 2015.*
 Default configuration should reproduce the method presented in this paper.
 datasets_segmentation_loops.py contains ready-to-use functions to evaluate the segmentation on one of the following datasets:

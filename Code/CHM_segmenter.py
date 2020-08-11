@@ -7,6 +7,20 @@ import librosa
 import madmom
 import timbral_models
 
+''' Notes
+Nouvelle version qui se veut aussi modulable que possible
+------------------------------------------------------------------------------
+• Extraction audio au départ (très) fortement inspirée de timbral_extractor
+  de la librairie timbral_models. A voir niveau droit/licence ?
+• Idem voir licence pour compute_SM_dot
+• Partie beat sync à améliorer
+• Faire les en-têtes des fonctions
+• rajouter un paramètre Verbose et/ou visualisation
+• Padding/Stripping des segments avec le 0 et la fin pour être sûr d'être
+  cohérent entre annotations et sortie du segmenter
+• Enlever six et la compatibilité vers Python 2...
+'''
+
 
 def segmenter(audio_filename, sample_rate=22050,
               beats_file=None,
@@ -218,63 +232,49 @@ def compute_multi_features_ssm(audio_filename,
                                    len(features)))
     feature_index = 0
     if 'chroma_stft' in features:
-        chroma_stft_file = os.path.join(
-            os.path.dirname(os.path.dirname(audio_filename)),
-            'features',
-            'CHM_features_SSM',
-            os.path.splitext(os.path.basename(audio_filename))[0]
-            + '_chroma_stft.txt')
-        try:
-            chroma_ssm = np.loadtxt(chroma_stft_file)
-            multi_features_ssm[:, :, feature_index] = chroma_ssm
-            feature_index += 1
-            print('\tChroma STFT SSM already computed, loaded from file')
-        except (OSError, ValueError) as error:
-            if error == ValueError:
-                print('Saved SSM matrix is not consistent with given downbeats'
-                      'file. It will not be used.')
-            print('\tComputing chroma STFT')
-            # STFT Chroma parameters
-            CHROMA_N_FFT = 4410
-            CHROMA_HOP_LENGTH = 2205
-            chroma_matrix = librosa.feature.chroma_stft(
-                song_signal, sample_rate, n_fft=CHROMA_N_FFT,
-                hop_length=CHROMA_HOP_LENGTH, norm=None)
+        print('\tComputing chroma STFT')
+        # STFT Chroma parameters
+        CHROMA_N_FFT = 4410
+        CHROMA_HOP_LENGTH = 2205
+        chroma_matrix = librosa.feature.chroma_stft(
+            song_signal, sample_rate, n_fft=CHROMA_N_FFT,
+            hop_length=CHROMA_HOP_LENGTH, norm=None)
 
-            # Beat synchronization
-            CHROMA_FEATURE_RATE = sample_rate/(CHROMA_N_FFT
-                                               - CHROMA_HOP_LENGTH)
-            dt = 1/CHROMA_FEATURE_RATE
-            frame_times_vector = np.zeros(np.shape(chroma_matrix)[1]+1)
+        # Beat synchronization
+        CHROMA_FEATURE_RATE = sample_rate/(CHROMA_N_FFT
+                                           - CHROMA_HOP_LENGTH)
+        dt = 1/CHROMA_FEATURE_RATE
+        frame_times_vector = np.zeros(np.shape(chroma_matrix)[1]+1)
 
-            for i in range(np.shape(chroma_matrix)[1]):
-                frame_times_vector[i] = min(i*dt,
-                                            (len(song_signal)-1)/sample_rate)
-            frame_times_vector[-1] = frame_times_vector[-2]
-            frame_mid_vector = (frame_times_vector[0:-1]
-                                + frame_times_vector[1:])/2
+        for i in range(np.shape(chroma_matrix)[1]):
+            frame_times_vector[i] = min(i*dt,
+                                        (len(song_signal)-1)/sample_rate)
+        frame_times_vector[-1] = frame_times_vector[-2]
+        frame_mid_vector = (frame_times_vector[0:-1]
+                            + frame_times_vector[1:])/2
 
-            beat_sync_chroma_matrix = feature_beat_synchronization(
-                chroma_matrix, beats_vector, frame_mid_vector)
+        # beat_sync_chroma_matrix = feature_beat_synchronization(
+        #     chroma_matrix, beats_vector, frame_mid_vector)
 
-            # Barwise organization
-            barwise_chroma_matrix = organize_features_in_bars(
-                beat_sync_chroma_matrix, beats_vector, downbeats_vector)
+        test = new_feature_beat_synchronization(chroma_matrix,
+                                                CHROMA_HOP_LENGTH,
+                                                sample_rate,
+                                                beats_vector)
+        # Barwise organization
+        barwise_chroma_matrix = organize_features_in_bars(
+            test, beats_vector, downbeats_vector)
 
-            # Normalization
-            barwise_chroma_matrix = librosa.util.normalize(
-                barwise_chroma_matrix, norm=NORM_ORDER,
-                threshold=NORM_THRESHOLD)
+        # Normalization
+        barwise_chroma_matrix = librosa.util.normalize(
+            barwise_chroma_matrix, norm=NORM_ORDER,
+            threshold=NORM_THRESHOLD)
 
-            # Self-Similarity Matrix computation
-            chroma_ssm = compute_SM_dot(barwise_chroma_matrix,
-                                        barwise_chroma_matrix)
+        # Self-Similarity Matrix computation
+        chroma_ssm = compute_SM_dot(barwise_chroma_matrix,
+                                    barwise_chroma_matrix)
 
-            # Saving SSM to file
-            np.savetxt(chroma_stft_file, chroma_ssm)
-
-            multi_features_ssm[:, :, feature_index] = chroma_ssm
-            feature_index += 1
+        multi_features_ssm[:, :, feature_index] = chroma_ssm
+        feature_index += 1
 
     if 'chroma_cqt' in features:
         chroma_cqt_file = os.path.join(
@@ -333,58 +333,49 @@ def compute_multi_features_ssm(audio_filename,
             np.savetxt(chroma_cqt_file, chroma_ssm)
 
     if 'mfcc' in features:
-        mfcc_file = os.path.join(
-            os.path.dirname(os.path.dirname(audio_filename)),
-            'features',
-            'CHM_features_SSM',
-            os.path.splitext(os.path.basename(audio_filename))[0]
-            + '_mfcc.txt')
-        try:
-            mfcc_ssm = np.loadtxt(mfcc_file)
-            multi_features_ssm[:, :, feature_index] = mfcc_ssm
-            feature_index += 1
-            print('\tMFCC SSM already computed, loaded from file')
-        except (OSError, ValueError) as error:
-            if error == ValueError:
-                print('Saved SSM matrix is not consistent with given downbeats'
-                      'file. It will not be used.')
-            print('\tComputing MFCC')
-            N_MFCC = 13
-            MFCC_N_FFT = int(0.025*sample_rate)  # 0.025 seconds
-            MFCC_HOP_LENGTH = int(0.01*sample_rate)  # 0.01 seconds
-            mfcc_matrix = librosa.feature.mfcc(song_signal,
-                                               sample_rate,
-                                               n_mfcc=N_MFCC,
-                                               n_fft=MFCC_N_FFT,
-                                               hop_length=MFCC_HOP_LENGTH,
-                                               lifter=22*N_MFCC,
-                                               fmax=4000,
-                                               norm=None)[1:]
-            # Beat synchronization
-            num_frames = np.shape(mfcc_matrix)[1]
-            dt = len(song_signal)/sample_rate/num_frames
-            frame_mid_vector = np.linspace(dt, num_frames*dt, num_frames)
+        print('\tComputing MFCC')
+        N_MFCC = 13
+        MFCC_N_FFT = int(0.025*sample_rate)  # 0.025 seconds
+        MFCC_HOP_LENGTH = int(0.01*sample_rate)  # 0.01 seconds
+        mfcc_matrix = librosa.feature.mfcc(song_signal,
+                                           sample_rate,
+                                           n_mfcc=N_MFCC,
+                                           n_fft=MFCC_N_FFT,
+                                           hop_length=MFCC_HOP_LENGTH,
+                                           lifter=22*N_MFCC,
+                                           fmax=4000,
+                                           norm=None)[1:]
+        # Beat synchronization
+        num_frames = np.shape(mfcc_matrix)[1]
+        dt = len(song_signal)/sample_rate/num_frames
+        frame_mid_vector = np.linspace(dt, num_frames*dt, num_frames)
 
-            beat_sync_mfcc_matrix = feature_beat_synchronization(
-                mfcc_matrix, beats_vector, frame_mid_vector)
+        beat_sync_mfcc_matrix = feature_beat_synchronization(
+            mfcc_matrix, beats_vector, frame_mid_vector)
 
-            # Barwise organisation
-            barwise_mfcc_matrix = organize_features_in_bars(
-                beat_sync_mfcc_matrix, beats_vector, downbeats_vector)
+        # TODO : PARTIE TEST
+        test = new_feature_beat_synchronization(mfcc_matrix,
+                                                MFCC_HOP_LENGTH,
+                                                sample_rate,
+                                                beats_vector)
+        barwise_mfcc_matrix = organize_features_in_bars(test,
+                                                        beats_vector,
+                                                        downbeats_vector)
 
-            # Normalization
-            barwise_mfcc_matrix = librosa.util.normalize(
-                barwise_mfcc_matrix, norm=NORM_ORDER,
-                threshold=NORM_THRESHOLD)
+        # # Barwise organisation
+        # barwise_mfcc_matrix = organize_features_in_bars(
+        #     beat_sync_mfcc_matrix, beats_vector, downbeats_vector)
 
-            # Self-Similarity Matrix computation
-            mfcc_ssm = compute_SM_dot(barwise_mfcc_matrix, barwise_mfcc_matrix)
+        # Normalization
+        barwise_mfcc_matrix = librosa.util.normalize(
+            barwise_mfcc_matrix, norm=NORM_ORDER,
+            threshold=NORM_THRESHOLD)
 
-            # Saving SSM to file
-            np.savetxt(mfcc_file, mfcc_ssm)
+        # Self-Similarity Matrix computation
+        mfcc_ssm = compute_SM_dot(barwise_mfcc_matrix, barwise_mfcc_matrix)
 
-            multi_features_ssm[:, :, feature_index] = mfcc_ssm
-            feature_index += 1
+        multi_features_ssm[:, :, feature_index] = mfcc_ssm
+        feature_index += 1
 
     if 'ac_timbral_features' in features:
         # changer nom de ac_timbral_features
@@ -534,24 +525,46 @@ def check_beats_downbeats_alignment(beats_vector, downbeats_vector):
     return max_error, db_closest_beat_vector
 
 
+# def feature_beat_synchronization(features_matrix, beats_vector,
+#                                  frame_times_vector):
+#     """
+
+#     Parameters
+#     ----------
+#     features_matrix : TYPE
+#         features for each time frame.
+#     beats_vector : TYPE
+#         times of the tactuses (seconds).
+#     frame_times_vector : TYPE
+#         time for which the features in features_m stand.
+
+#     Returns
+#     -------
+#      beat_synchronous_features_matrix  : resulting downsampled features
+
+#     """
+#     number_of_frames = np.shape(features_matrix)[1]
+#     number_of_beats = len(beats_vector)
+
+#     # Averaging matrix
+#     downsample_matrix = np.zeros((number_of_frames, number_of_beats - 1))
+
+#     for j in range(number_of_beats-1):
+#         downsample_matrix[:, j] = ((beats_vector[j] <= frame_times_vector) &
+#                                    (frame_times_vector <= beats_vector[j+1]))
+
+#     # Averaging
+#     diag_vector = np.sum(downsample_matrix, axis=0)
+#     diag_vector[np.where(diag_vector != 0)[0]] = (
+#         1/diag_vector[np.where(diag_vector != 0)[0]])
+#     downsample_matrix = np.matmul(downsample_matrix, np.diag(diag_vector))
+#     beat_sync_feature_matrix = np.matmul(features_matrix, downsample_matrix)
+
+#     return beat_sync_feature_matrix
+
+
 def feature_beat_synchronization(features_matrix, beats_vector,
                                  frame_times_vector):
-    """
-
-    Parameters
-    ----------
-    features_matrix : TYPE
-        features for each time frame.
-    beats_vector : TYPE
-        times of the tactuses (seconds).
-    frame_times_vector : TYPE
-        time for which the features in features_m stand.
-
-    Returns
-    -------
-     beat_synchronous_features_matrix  : resulting downsampled features
-
-    """
     number_of_frames = np.shape(features_matrix)[1]
     number_of_beats = len(beats_vector)
 
@@ -574,7 +587,7 @@ def feature_beat_synchronization(features_matrix, beats_vector,
 
 def organize_features_in_bars(beat_sync_feature_matrix, beats_vector,
                               downbeats_vector):
-    """
+    '''
     NOTATIONS A CLARIFIER
 
     Parameters
@@ -589,9 +602,7 @@ def organize_features_in_bars(beat_sync_feature_matrix, beats_vector,
     Returns
     -------
     None.
-
-    """
-
+    '''
     feature_length = np.shape(beat_sync_feature_matrix)[0]
     [beats_per_bar_vector, start_beats_vector] = beats_per_bar(
         beats_vector, downbeats_vector)[0:2]
@@ -1044,27 +1055,6 @@ def select_boundaries(segmentation_criterion_vector,
                       downbeat_vector,
                       song_duration,
                       minimum_segment_size=0):
-    """
-
-
-    Parameters
-    ----------
-    segmentation_criterion_vector : TYPE
-        DESCRIPTION.
-    downbeat_vector : TYPE
-        DESCRIPTION.
-    song_duration : TYPE
-        DESCRIPTION.
-    minimum_segment_size : TYPE, optional
-        DESCRIPTION. The default is 0.
-
-    Returns
-    -------
-    boundaries_vector : TYPE
-        DESCRIPTION.
-
-    """
-
     segmentation_criterion_peaks_vector = select_peaks(
         segmentation_criterion_vector)
     # segmentation_criterion_peaks_vector = librosa.util.peak_pick(
@@ -1112,7 +1102,7 @@ def select_boundaries(segmentation_criterion_vector,
 
 
 def estimate_beats_madmom_1(audio_filename):
-    """
+    '''
     From Harmonix dataset source
     Produces beat time estimates according to the paper:
 
@@ -1128,14 +1118,14 @@ def estimate_beats_madmom_1(audio_filename):
     Return:
         list(float) - The estimates of the beat positions in the audio as a
         list of positions in seconds.
-    """
+    '''
     proc = madmom.features.beats.DBNBeatTrackingProcessor(fps=100)
     act = madmom.features.beats.RNNBeatProcessor()(audio_filename)
     return proc(act)
 
 
 def estimate_downbeats_madmom_1(filename, reference_beats_filename):
-    """
+    '''
     From Harmonix dataset source
     Estimates beats using reference beats and the `DBNBarTrackingProcessor`
     provided with madmom:
@@ -1157,7 +1147,7 @@ def estimate_downbeats_madmom_1(filename, reference_beats_filename):
     Return:
         list(float) - The estimates of the downbeat positions in the audio as
         a list of positions in seconds.
-    """
+    '''
 
     proc = madmom.features.downbeats.DBNBarTrackingProcessor(
         beats_per_bar=[3, 4])
@@ -1182,7 +1172,7 @@ def estimate_downbeats_madmom_1(filename, reference_beats_filename):
 
 
 def save_beats(beats_vector, downbeats_vector, filename):
-    
+
     indexed_beats = np.zeros((len(beats_vector), 2))
     indexed_beats[:, 0] = beats_vector
 
@@ -1210,3 +1200,22 @@ def save_segments(segments_boundaries, filename):
             segment_number+1)
     with open(filename, 'w') as segment_file:
         segment_file.write(file_data)
+
+
+def new_feature_beat_synchronization(feature,
+                                     feature_hop_length,
+                                     sample_rate,
+                                     beats_vector):
+
+    beat_sync_feature = np.zeros((np.size(feature, axis=0),
+                                  np.size(beats_vector)))
+    for i in range(len(beats_vector) - 1):
+        frame_index = round(beats_vector[i]*sample_rate/feature_hop_length)
+        next_frame_index = round(beats_vector[i+1]*sample_rate
+                                 / feature_hop_length)
+        beat_sync_feature[:, i] = np.mean(
+            feature[:, frame_index:next_frame_index], axis=1)
+    beat_sync_feature[:, -1] = np.mean(
+        feature[:, round(beats_vector[-1]*sample_rate/feature_hop_length):],
+        axis=1)
+    return beat_sync_feature

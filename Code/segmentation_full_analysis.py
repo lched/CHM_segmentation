@@ -7,6 +7,25 @@ import librosa
 import madmom
 import timbral_models
 
+'''
+!!! Identique à CHM_segmentation_method_v2 mais visusalise les résultats et
+sauvegarde tout dans un 'output_directory' !!!
+Permet d'étudier précisément quelques morceaux'
+
+Notes de CHM_segmentation_method_v2 (au 21/07/2020)
+Nouvelle version qui se veut aussi modulable que possible
+------------------------------------------------------------------------------
+• segmentation_evaluation est à remplacer par une méthode de mir_eval
+• Extraction audio au départ (très) fortement inspirée de timbral_extractor
+  de la librairie timbral_models. A voir niveau droit/licence ?
+• Idem voir licence pour compute_SM_dot
+• Partie beat sync à améliorer
+• Faire les en-têtes des fonctions
+• rajouter un paramètre Verbose et/ou visualisation
+• Padding/Stripping des segments avec le 0 et la fin pour être sûr d'être
+  cohérent entre annotations et sortie du segmenter
+'''
+
 
 def segmenter(output_directory,
               audio_filename, sample_rate=22050,
@@ -165,6 +184,7 @@ def segmenter(output_directory,
     # =============================================================================
     # Save results
     # =============================================================================
+    # TODO : ouverture results si déjà calculés ?
     estimated_boundaries_fname = os.path.join(
         output_directory,
         os.path.splitext(os.path.basename(audio_filename))[0]
@@ -226,9 +246,13 @@ def compute_multi_features_ssm(audio_filename,
         beat_sync_chroma_matrix = feature_beat_synchronization(
             chroma_matrix, beats_vector, frame_mid_vector)
 
+        test = new_feature_beat_synchronization(chroma_matrix,
+                                                CHROMA_HOP_LENGTH,
+                                                sample_rate,
+                                                beats_vector)
         # Barwise organization
         barwise_chroma_matrix = organize_features_in_bars(
-            beat_sync_chroma_matrix, beats_vector, downbeats_vector)
+            test, beats_vector, downbeats_vector)
 
         # Normalization
         barwise_chroma_matrix = librosa.util.normalize(
@@ -301,9 +325,18 @@ def compute_multi_features_ssm(audio_filename,
         beat_sync_mfcc_matrix = feature_beat_synchronization(
             mfcc_matrix, beats_vector, frame_mid_vector)
 
-        # Barwise organisation
-        barwise_mfcc_matrix = organize_features_in_bars(
-            beat_sync_mfcc_matrix, beats_vector, downbeats_vector)
+        # TODO : PARTIE TEST
+        test = new_feature_beat_synchronization(mfcc_matrix,
+                                                MFCC_HOP_LENGTH,
+                                                sample_rate,
+                                                beats_vector)
+        barwise_mfcc_matrix = organize_features_in_bars(test,
+                                                        beats_vector,
+                                                        downbeats_vector)
+
+        # # Barwise organisation
+        # barwise_mfcc_matrix = organize_features_in_bars(
+        #     beat_sync_mfcc_matrix, beats_vector, downbeats_vector)
 
         # Normalization
         barwise_mfcc_matrix = librosa.util.normalize(
@@ -387,6 +420,60 @@ def compute_multi_features_ssm(audio_filename,
 
         multi_features_ssm[:, :, feature_index] = ac_timbral_ssm
 
+    """
+    # =============================================================================
+    # Display results
+    # =============================================================================
+    # fig, axs = plt.subplots(2, 2, sharex=True)
+    # axs[0, 0].imshow(chroma_ssm)
+    # axs[0, 0].set_title('Chroma')
+    # axs[1, 0].plot(np.arange(0, len(downbeats_vector)-2),
+    #                compute_repetition_criterion(chroma_ssm))
+    # axs[1, 0].set_title('Fonction répétition chroma')
+    # axs[0, 1].imshow(mfcc_ssm)
+    # axs[0, 1].set_title('MFCC')
+    # axs[1, 1].plot(np.arange(0, len(downbeats_vector)-2),
+    #                compute_repetition_criterion(mfcc_ssm))
+    # axs[1, 1].set_title('Fonction répétition MFCC')
+    # # fig.tight_layout()
+
+    # fig, ax = plt.subplots()
+    # ax.imshow(chroma_ssm)
+    # # create new axes on the right and on the top of the current axes.
+    # divider = make_axes_locatable(ax)
+    # axbottom = divider.append_axes('bottom', size=1.2, pad=0.3, sharex=ax)
+    # # plot to the new axes
+    # axbottom.plot(np.arange(0, len(downbeats_vector)-2),
+    #               compute_repetition_criterion(chroma_ssm))
+    # axbottom.plot(np.arange(0, len(downbeats_vector)-2),
+    #               compute_novelty_criterion(chroma_ssm))
+    # # adjust margins
+    # axbottom.margins(x=0)
+    # plt.tight_layout()
+    # plt.show()
+
+    fig, axs = plt.subplots(1, 2)
+    axs[0].imshow(chroma_ssm)
+    divider1 = make_axes_locatable(axs[0])
+    ax0bottom = divider1.append_axes('bottom', size=1.2,
+                                     pad=0.3, sharex=axs[0])
+    ax0bottom.plot(np.arange(0, len(downbeats_vector)-2),
+                   compute_repetition_criterion(chroma_ssm))
+    ax0bottom.plot(np.arange(0, len(downbeats_vector)-2),
+                   compute_novelty_criterion(chroma_ssm))
+    ax0bottom.set_title('Test')
+    axs[1].imshow(mfcc_ssm)
+
+    plt.figure()
+    plt.plot(downbeats_vector[1:-1],
+             segmentation_criterion_vector)
+    plt.vlines(estimated_boundaries_vector, ymin=0,
+               ymax=max(segmentation_criterion_vector),
+               color='red')
+    plt.vlines(ref_boundaries, ymin=0,
+               ymax=max(segmentation_criterion_vector),
+               color='green')
+    plt.show() """
     return multi_features_ssm
 
 
@@ -394,19 +481,6 @@ def compute_SM_dot(X, Y):
     """
     Computes similarity matrix from feature sequences using dot (inner) product
     Notebook: C4/C4S2_SSM.ipynb
-
-    Parameters
-    ----------
-    X : TYPE
-        DESCRIPTION.
-    Y : TYPE
-        DESCRIPTION.
-
-    Returns
-    -------
-    S : TYPE
-        DESCRIPTION.
-
     """
     S = np.dot(np.transpose(Y), X)
     S[np.where(S < 0)] = 0
@@ -417,17 +491,6 @@ def check_beats_downbeats_alignment(beats_vector, downbeats_vector):
     """
     check_beats_downbeats_alignment checks if a set of beats and downbeats
     annotations match
-
-    Parameters
-    ----------
-    beats_vector : numpy array
-        Contains beats.
-    downbeats_vector : numpy array
-        Contains downbeats.
-
-    Returns
-    -------
-    None.
 
     """
     max_error = 0
@@ -447,22 +510,6 @@ def check_beats_downbeats_alignment(beats_vector, downbeats_vector):
 
 def feature_beat_synchronization(features_matrix, beats_vector,
                                  frame_times_vector):
-    """
-
-    Parameters
-    ----------
-    features_matrix : TYPE
-        features for each time frame.
-    beats_vector : TYPE
-        times of the tactuses (seconds).
-    frame_times_vector : TYPE
-        time for which the features in features_m stand.
-
-    Returns
-    -------
-     beat_synchronous_features_matrix  : resulting downsampled features
-
-    """
     number_of_frames = np.shape(features_matrix)[1]
     number_of_beats = len(beats_vector)
 
@@ -483,26 +530,28 @@ def feature_beat_synchronization(features_matrix, beats_vector,
     return beat_sync_feature_matrix
 
 
+def new_feature_beat_synchronization(feature,
+                                     feature_hop_length,
+                                     sample_rate,
+                                     beats_vector):
+
+    beat_sync_feature = np.zeros((np.size(feature, axis=0),
+                                  np.size(beats_vector)))
+    for i in range(len(beats_vector) - 1):
+        frame_index = round(beats_vector[i]*sample_rate/feature_hop_length)
+        next_frame_index = round(beats_vector[i+1]*sample_rate
+                                 / feature_hop_length)
+        beat_sync_feature[:, i] = np.mean(
+            feature[:, frame_index:next_frame_index], axis=1)
+    beat_sync_feature[:, -1] = np.mean(
+        feature[:, round(beats_vector[-1]*sample_rate/feature_hop_length):],
+        axis=1)
+    return beat_sync_feature
+
+
 def organize_features_in_bars(beat_sync_feature_matrix, beats_vector,
                               downbeats_vector):
-    """
-    NOTATIONS A CLARIFIER
-
-    Parameters
-    ----------
-    beat_sync_feature_matrix : TYPE
-        DESCRIPTION.
-    beats_vector : TYPE
-        DESCRIPTION.
-    downbeats_vector : TYPE
-        DESCRIPTION.
-
-    Returns
-    -------
-    None.
-
-    """
-
+    # TODO : refaire la fonction
     feature_length = np.shape(beat_sync_feature_matrix)[0]
     [beats_per_bar_vector, start_beats_vector] = beats_per_bar(
         beats_vector, downbeats_vector)[0:2]
@@ -529,23 +578,13 @@ def organize_features_in_bars(beat_sync_feature_matrix, beats_vector,
     return bar_features_matrix
 
 
+def organize_feature_barwise(beat_sync_feature, beats_vector,
+                             downbeats_vector):
+    barwise_feature = 2
+    return barwise_feature
+
+
 def beats_per_bar(beats_vector, downbeats_vector):
-    """
-
-
-    Parameters
-    ----------
-    beats_vector : TYPE
-        DESCRIPTION.
-    downbeats_vector : TYPE
-        DESCRIPTION.
-
-    Returns
-    -------
-    None.
-
-    """
-
     for downbeat in downbeats_vector:
         if not(any(beats_vector == downbeat)):
             return('Error : every downbeat should be a beat !\n')
@@ -577,21 +616,6 @@ def beats_per_bar(beats_vector, downbeats_vector):
 
 
 def compute_repetition_criterion(feature_SSM):
-    """
-
-
-    Parameters
-    ----------
-    feature_SSM : TYPE
-        DESCRIPTION.
-
-    Returns
-    -------
-    repetition_criterion_vector : TYPE
-        DESCRIPTION.
-
-    """
-
     SSM_length = len(feature_SSM)
 
     # Time-lag matrix
@@ -635,16 +659,7 @@ def cancel_peaks(vector):
     """
     CANCEL_PEAKS smoothens array vector by clearing its local extrema.
 
-    Parameters
-    ----------
-    vector : array
-
-    Returns
-    -------
-    smooth_vector : array
-
     """
-
     smooth_vector = vector
 
     for i in range(1, len(vector)-1):
@@ -659,20 +674,10 @@ def cancel_peaks(vector):
 
 
 def select_peaks(vector):
-    """
+    '''
     SELECT_PEAKS picks the peaks in vector (puts every non-local maximum value
     to zero).
-
-    Parameters
-    ----------
-    vector : array
-
-    Returns
-    -------
-    peaks_vector
-
-    """
-
+    '''
     peaks_vector = np.zeros(len(vector))
     for i in range(1, len(vector)-1):
         if((vector[i] > vector[i-1]) & (vector[i] >= vector[i+1])):
@@ -682,23 +687,6 @@ def select_peaks(vector):
 
 
 def otsu_thresholding(data, number_of_bins=10):
-    """
-
-
-    Parameters
-    ----------
-    data : TYPE
-        DESCRIPTION.
-    number_of_bins : TYPE, optional
-        DESCRIPTION. The default is 10.
-
-    Returns
-    -------
-    level : TYPE
-        DESCRIPTION.
-
-    """
-
     # Convert data to vector
     data = np.reshape(data, np.size(data), order='F')
     histogram = np.histogram(data, number_of_bins)[0]/np.size(data)
@@ -723,21 +711,6 @@ def otsu_thresholding(data, number_of_bins=10):
 
 
 def compute_novelty_criterion(feature_SSM):
-    """
-
-
-    Parameters
-    ----------
-    feature_SSM : TYPE
-        DESCRIPTION.
-
-    Returns
-    -------
-    novelty_criterion_vector : TYPE
-        DESCRIPTION.
-
-    """
-
     novelty_criterion_vector = np.zeros(len(feature_SSM) - 1)
 
     for kernel_size in [4, 8, 12, 16, 32]:
@@ -755,36 +728,6 @@ def compute_novelty_criterion(feature_SSM):
 def compute_novelty_curve(feature_SSM, kernel_size=64,
                           kernel_type='H-H',
                           kernel_balancing='after'):
-    """
-
-
-    Parameters
-    ----------
-    feature_SSM : TYPE
-        DESCRIPTION.
-    kernel_size : TYPE, optional
-        DESCRIPTION. The default is 64.
-    kernel_type : TYPE, optional
-        DESCRIPTION. The default is 'H-H'.
-    kernel_balancing : TYPE, optional
-        DESCRIPTION. The default is 'after'.
-
-    Raises
-    ------
-    ValueError
-        DESCRIPTION.
-
-    Returns
-    -------
-    novelty_vector : TYPE
-        DESCRIPTION.
-    min_val : TYPE
-        DESCRIPTION.
-    max_val : TYPE
-        DESCRIPTION.
-
-    """
-
     if kernel_type == 'H-H':
         kernel_m, min_val, max_val = checker_gauss(kernel_size)
     elif kernel_type == 'H-N':
@@ -818,25 +761,10 @@ def compute_novelty_curve(feature_SSM, kernel_size=64,
 
 
 def checker_gauss(N):
-    """
+    '''
     checker_gauss returns a checkerboard-like matrix of type [1 -1; -1 1]
     weighted by a gaussian.
-
-    Parameters
-    ----------
-    N : int
-        size of the matrix
-
-    Returns
-    -------
-    y : TYPE
-        DESCRIPTION.
-    min_val : TYPE
-        DESCRIPTION.
-    max_val : TYPE
-        DESCRIPTION.
-
-    """
+    '''
     hN = int(np.ceil(N/2))
     y = np.zeros((N, N))
     # Upper left (the biggest corner in case N is even)
@@ -867,7 +795,7 @@ def checker_gauss(N):
 
 
 def block_diag_gauss(N, balancing):
-    """
+    '''
     % block_diag_gauss returns a homogeneous / non homogeneous transition
     % kernel such as proposed by Kaiser & Peeters (2013).
     %
@@ -880,29 +808,7 @@ def block_diag_gauss(N, balancing):
     % OUTPUT
     % - y
 
-    Parameters
-    ----------
-    N : TYPE
-        DESCRIPTION.
-    balancing : TYPE
-        DESCRIPTION.
-
-    Raises
-    ------
-    ValueError
-        DESCRIPTION.
-
-    Returns
-    -------
-    y : TYPE
-        DESCRIPTION.
-    min_val : TYPE
-        DESCRIPTION.
-    max_val : TYPE
-        DESCRIPTION.
-
-    """
-
+    '''
     hpN = int(np.ceil(N/2))
     hmN = int(np.floor(N/2))
     y = np.zeros((N, N))
@@ -955,26 +861,6 @@ def select_boundaries(segmentation_criterion_vector,
                       downbeat_vector,
                       song_duration,
                       minimum_segment_size=0):
-    """
-
-
-    Parameters
-    ----------
-    segmentation_criterion_vector : TYPE
-        DESCRIPTION.
-    downbeat_vector : TYPE
-        DESCRIPTION.
-    song_duration : TYPE
-        DESCRIPTION.
-    minimum_segment_size : TYPE, optional
-        DESCRIPTION. The default is 0.
-
-    Returns
-    -------
-    boundaries_vector : TYPE
-        DESCRIPTION.
-
-    """
 
     segmentation_criterion_peaks_vector = select_peaks(
         segmentation_criterion_vector)
@@ -1121,3 +1007,19 @@ def save_segments(segments_boundaries, filename):
             segment_number+1)
     with open(filename, 'w') as f:
         f.write(file_data)
+
+
+# =============================================================================
+# Test Code
+# =============================================================================
+output_directory = '/home/leo/Desktop/test'
+test_fname = ('/media/leo/42A45DCCA45DC359/MIR_DATASETS/Beatles_Helene/audio/'
+              '01_-_A_Hard_Day_s_Night.wav')
+beats_file = ('/media/leo/42A45DCCA45DC359/MIR_DATASETS/Beatles_Helene/'
+              'estimations/beats_and_downbeats/01_-_A_Hard_Day_s_Night.lab')
+est_segments = segmenter(output_directory,
+                         test_fname, sample_rate=22050,
+                         beats_file=beats_file,
+                         features=['chroma_stft', 'mfcc'],
+                         criteria=['repetition', 'novelty'],
+                         coefficients=[1, 1, 1, 1])

@@ -12,10 +12,10 @@ import madmom
 # Local imports
 import estimate_beats
 import estimate_downbeats
-from CHM_utils import (save_segments, save_beats, compute_repetition_criterion,
-                       compute_novelty_criterion, select_boundaries,
-                       divide_beats_in_two, create_click)
-from CHM_features import compute_multi_features_ssm
+from utils import (save_segments, save_beats, compute_repetition_criterion,
+                   compute_novelty_criterion, select_boundaries,
+                   divide_beats_in_two, create_click)
+from features import compute_multi_features_ssm
 
 
 def segmenter(output_directory,
@@ -178,13 +178,17 @@ def segmenter(output_directory,
     if 'repetition' in criteria:
         for feature_index in range(len(features)):
             segmentation_criterion_matrix[criterion_index, :] = (
-                compute_repetition_criterion(multi_features_ssm[:, :, feature_index]))
+                compute_repetition_criterion(multi_features_ssm[:,
+                                                                :,
+                                                                feature_index]))
             criterion_index += 1
 
     if 'novelty' in criteria:
         for feature_index in range(len(features)):
             segmentation_criterion_matrix[criterion_index, :] = (
-                compute_novelty_criterion(multi_features_ssm[:, :, feature_index]))
+                compute_novelty_criterion(multi_features_ssm[:,
+                                                             :,
+                                                             feature_index]))
             criterion_index += 1
 
     segmentation_criterion_vector = np.sum((segmentation_criterion_matrix

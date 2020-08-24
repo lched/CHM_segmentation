@@ -2,6 +2,7 @@
 
 # Python standard library imports
 import os
+from shutil import copy2
 import numpy as np
 
 # Third party imports
@@ -12,7 +13,8 @@ import madmom
 import estimate_beats
 import estimate_downbeats
 from CHM_utils import (save_segments, save_beats, compute_repetition_criterion,
-                       compute_novelty_criterion, select_boundaries)
+                       compute_novelty_criterion, select_boundaries,
+                       divide_beats_in_two, create_click)
 from CHM_features import compute_multi_features_ssm
 
 
@@ -23,6 +25,9 @@ def segmenter(output_directory,
               criteria=['repetition', 'novelty'],
               coefficients=[1, 1, 1, 1]):
     '''
+    The aim is to have everything you need in an output directory. (segments,
+                                                                    beats,
+                                                                    click)
     Estimate segments boundaries of a song. Does not estimate labels Based on :
     C. Gaudefroy H. Papadopoulos and M. Kowalski, “A Multi-Dimensional
     Meter-Adaptive Method For Automatic Segmentation Of Music”, in CBMI 2015.
@@ -96,25 +101,19 @@ def segmenter(output_directory,
     print('Computing: {}'.format(audio_filename))
     song_signal, sample_rate = librosa.load(audio_filename, sr=sample_rate)
 
+    # Copy audio to output_directory
+    copy2(audio_filename, output_directory)
+
     # =============================================================================
     #  Get beats and downbeats
     # =============================================================================
     if beats_file is None:
-        beats_file = os.path.join(
-            output_directory,
-            os.path.splitext(os.path.basename(audio_filename))[0]
-            + '_estimated_beats.lab'
-            )
-
         print('\tComputing beats using madmom...')
-        beats_vector = estimate_beats.madmom_1(audio_filename)[0]
+        beats_vector = estimate_beats.ellis(audio_filename)[0]
         print('\tComputing downbeats using madmom')
         downbeats_vector = estimate_downbeats.madmom_1(audio_filename,
                                                        beats_vector)[0]
-        # Save results to .lab file
-        save_beats(beats_vector, downbeats_vector, beats_file)
     else:
-        # TODO : Copy beats vector in output directory
         if isinstance(beats_file, str):
             try:
                 beats_vector = madmom.io.load_beats(beats_file)
@@ -132,12 +131,24 @@ def segmenter(output_directory,
             raise ValueError('Input beats and downbeats must be either a '
                              'filename or a tuple of numpy arrays')
 
+    # In any case, save the beats to .lab file in output_directory
+    beats_file = os.path.join(
+        output_directory,
+        os.path.splitext(os.path.basename(audio_filename))[0]
+        + '_estimated_beats.lab')
+    save_beats(beats_vector, downbeats_vector, beats_file)
+
+    # Create click audio file to check beats. This audio file has the same
+    # sample rate as the original file
+    click_fname = os.path.join(
+        output_directory,
+        os.path.splitext(os.path.basename(audio_filename))[0]
+        + '_click.wav')
+    original_sample_rate = librosa.get_samplerate(audio_filename)
+    create_click(beats_vector, original_sample_rate, click_fname)
+
     # Divide beats in two
-    beats_length_vector = (np.array(beats_vector[1:])
-                           - np.array(beats_vector[:-1]))
-    beats_vector = np.concatenate((beats_vector, beats_vector[:-1]
-                                   + beats_length_vector/2))
-    beats_vector = np.sort(beats_vector, axis=None)
+    beats_vector = divide_beats_in_two(beats_vector)
 
     # =============================================================================
     # Features computation
@@ -147,6 +158,10 @@ def segmenter(output_directory,
                                                     beats_vector,
                                                     downbeats_vector,
                                                     features)
+
+    # =============================================================================
+    # Features display
+    # =============================================================================
 
     # =============================================================================
     # Segmentation
@@ -186,7 +201,7 @@ def segmenter(output_directory,
     estimated_boundaries_fname = os.path.join(
         output_directory,
         os.path.splitext(os.path.basename(audio_filename))[0]
-        + '_estimated_segments')
+        + '_estimated_segments.lab')
     save_segments(estimated_boundaries_vector,
                   estimated_boundaries_fname)
 

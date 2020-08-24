@@ -6,7 +6,7 @@ import numpy as np
 # Third party imports
 import librosa
 import madmom
-import wave
+import scipy.io.wavfile
 
 
 def compute_SM_dot(X, Y):
@@ -62,6 +62,16 @@ def check_beats_downbeats_alignment(beats_vector, downbeats_vector):
             db_closest_beat_vector[i] = downbeats_vector[i]
 
     return max_error, db_closest_beat_vector
+
+
+def divide_beats_in_two(beats_vector):
+    beats_length_vector = (np.array(beats_vector[1:])
+                           - np.array(beats_vector[:-1]))
+    beats_vector = np.concatenate((beats_vector, beats_vector[:-1]
+                                   + beats_length_vector/2))
+    beats_vector = np.sort(beats_vector, axis=None)
+
+    return beats_vector
 
 
 def compute_repetition_criterion(feature_SSM):
@@ -442,17 +452,12 @@ def save_segments(segments_boundaries, filename):
         segment_file.write(file_data)
 
 
-def create_click(beats_vector, sample_rate):
+def create_click(beats_vector, sample_rate, output_fname):
 
-    sound = librosa.clicks(times=beats_vector,
-                           sr=sample_rate,
-                           click_duration=2e-2)
-
-    with wave.open('sound.wav', 'w') as sound_object:
-        sound_object.setnchannels(1)  # mono
-        sound_object.setsampwidth(2)
-        sound_object.setframerate(44100)
-        sound_object.writeframesraw(sound)
+    data = librosa.clicks(times=beats_vector,
+                          sr=sample_rate,
+                          click_duration=2e-2)
+    scipy.io.wavfile.write(output_fname, sample_rate, data)
 
 
 def show_features():

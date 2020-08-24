@@ -9,7 +9,8 @@ import CHM_segmenter as CHM
 def beatles_segmentation_loop(beatles_dataset_path,
                               features=['chroma_stft', 'mfcc'],
                               criteria=['repetition', 'novelty'],
-                              coefficients=[1, 1, 1, 1]):
+                              coefficients=[1, 1, 1, 1],
+                              use_ref_beats=False):
     '''
     Segmentation evaluation loop for the Beatles dataset.
     The dataset should be organized as follows (consistent
@@ -52,7 +53,7 @@ def beatles_segmentation_loop(beatles_dataset_path,
     R3_vector : array
     '''
     START_SONG = 1
-    STOP_SONG = 181
+    STOP_SONG = 180
 
     F05_vector = np.zeros(STOP_SONG - START_SONG)
     P05_vector = np.zeros(STOP_SONG - START_SONG)
@@ -79,11 +80,23 @@ def beatles_segmentation_loop(beatles_dataset_path,
                                           'audio',
                                           track_name)
             # Compute estimated segments boundaries
-            estimated_segments = CHM.segmenter(audio_filename,
-                                               sample_rate=None,
-                                               features=features,
-                                               criteria=criteria,
-                                               coefficients=coefficients)[0]
+            if use_ref_beats:
+                ref_beat_fname = os.path.join(beatles_dataset_path,
+                                              'references',
+                                              'beats_and_downbeats',
+                                              track_name[:-4] + '.lab')
+                estimated_segments = CHM.segmenter(audio_filename,
+                                                   sample_rate=None,
+                                                   beats_file=ref_beat_fname,
+                                                   features=features,
+                                                   criteria=criteria,
+                                                   coefficients=coefficients)[0]
+            else:
+                estimated_segments = CHM.segmenter(audio_filename,
+                                                   sample_rate=None,
+                                                   features=features,
+                                                   criteria=criteria,
+                                                   coefficients=coefficients)[0]
 
             # Get ground truth boundaries for evaluation
             reference_segments_fname = os.path.join(
@@ -865,11 +878,12 @@ def DTL1000_segmentation_loop(DTL1000_dataset_path):
 # CODE
 # =============================================================================
 
-# beatles_segmentation_loop('/media/leo/42A45DCCA45DC359/'
-#                           'MIR_DATASETS/Beatles_Helene',
-#                           features=['chroma_stft', 'mfcc'])
+beatles_segmentation_loop('/media/leo/42A45DCCA45DC359/'
+                          'MIR_DATASETS/Beatles_Helene',
+                          features=['chroma_stft', 'mfcc'],
+                          use_ref_beats=False)
 # harmonix_segmentation_loop('/media/leo/42A45DCCA45DC359/MIR_DATASETS/Harmonix/'
 #                            'harmonixset-master/dataset')
-(F05_vector, P05_vector, R05_vector,
+""" (F05_vector, P05_vector, R05_vector,
  F3_vector, P3_vector, R3_vector) = DTL1000_segmentation_loop(
-     '/media/leo/42A45DCCA45DC359/MIR_DATASETS/DTL1000')
+     '/media/leo/42A45DCCA45DC359/MIR_DATASETS/DTL1000') """

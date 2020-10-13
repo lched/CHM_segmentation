@@ -1,4 +1,4 @@
-# CHM_segmentation
+# SSM_Barwise-Music-Segmentation
 Estimate segments boundaries of a song. Does not estimate labels.
 Based on:
     *C. Gaudefroy H. Papadopoulos and M. Kowalski, “A Multi-Dimensional Meter-Adaptive Method For Automatic Segmentation Of Music”, in CBMI 2015.*

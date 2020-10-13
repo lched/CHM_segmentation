@@ -8,8 +8,6 @@ import numpy as np
 import librosa
 import timbral_models
 
-# TODO : rajouter chargement/sauvegarde des features
-
 
 def compute_multi_features_ssm(audio_filename,
                                song_signal, sample_rate,
@@ -33,8 +31,6 @@ def compute_multi_features_ssm(audio_filename,
         if not os.path.exists(dir_fname):
             os.makedirs(dir_fname)
 
-    # TODO : A voir où faire la normalisation et si les paramètres sont
-    # accessibles
     # # Parameters for normalization
     # NORM_ORDER = 2
     # NORM_THRESHOLD = 1e-3
@@ -147,9 +143,6 @@ def feature_beat_synchronization(feature,
 
 def organize_features_in_bars(beat_sync_feature_matrix, beats_vector,
                               downbeats_vector):
-    '''
-    TODO : Improve all that
-    '''
     feature_length = np.shape(beat_sync_feature_matrix)[0]
     [beats_per_bar_vector, start_beats_vector] = beats_per_bar(
         beats_vector, downbeats_vector)[0:2]
@@ -214,11 +207,11 @@ def compute_chroma_stft(song_signal, sample_rate,
     NORM_ORDER = 2
     NORM_THRESHOLD = 1e-3
     # STFT Chroma parameters
-    # CHROMA_N_FFT = 4410
-    # CHROMA_HOP_LENGTH = 2205
+    CHROMA_N_FFT = 4410
+    CHROMA_HOP_LENGTH = 2205
     # !!! Test
-    CHROMA_N_FFT = round(np.mean(np.diff(beats_vector))*sample_rate)
-    CHROMA_HOP_LENGTH = round(CHROMA_N_FFT/2)
+    # CHROMA_N_FFT = round(np.mean(np.diff(beats_vector))*sample_rate)
+    # CHROMA_HOP_LENGTH = round(CHROMA_N_FFT/2)
 
     chroma_matrix = librosa.feature.chroma_stft(
         song_signal, sample_rate, n_fft=CHROMA_N_FFT,
@@ -253,7 +246,6 @@ def compute_constant_q(song_signal, sample_rate,
     NORM_THRESHOLD = 1e-3
 
     # Constant-Q Chroma parameters
-    # TODO : Corriger calcul Constant-Q
     CHROMA_HOP_LENGTH = 2205
     chroma_matrix = librosa.feature.chroma_cqt(
         song_signal, sample_rate,
@@ -325,7 +317,7 @@ def compute_mfcc(song_signal, sample_rate,
 def compute_ac_timbral(song_signal, sample_rate,
                        beats_vector, downbeats_vector,
                        save_feature=False):
-    # TODO: Re-do all that
+
     # Parameters for normalization
     NORM_ORDER = 2
     NORM_THRESHOLD = 1e-3

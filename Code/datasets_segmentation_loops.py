@@ -3,7 +3,7 @@
 import os
 import numpy as np
 import mir_eval
-import CHM_segmenter as CHM
+from datasets_segmenter import segmenter
 
 
 def beatles_segmentation_loop(beatles_dataset_path,
@@ -53,7 +53,7 @@ def beatles_segmentation_loop(beatles_dataset_path,
     R3_vector : array
     '''
     START_SONG = 1
-    STOP_SONG = 181
+    STOP_SONG = 180
 
     F05_vector = np.zeros(STOP_SONG - START_SONG)
     P05_vector = np.zeros(STOP_SONG - START_SONG)
@@ -81,23 +81,23 @@ def beatles_segmentation_loop(beatles_dataset_path,
                                           track_name)
             # Compute estimated segments boundaries
             if use_ref_beats:
-                reference_beats_fname = os.path.join(
+                ref_beats_fname = os.path.join(
                     beatles_dataset_path,
                     'references',
                     'beats_and_downbeats',
                     track_name[:-4] + '.lab')
-                estimated_segments = CHM.segmenter(audio_filename,
-                                                   sample_rate=None,
-                                                   beats_file=reference_beats_fname,
-                                                   features=features,
-                                                   criteria=criteria,
-                                                   coefficients=coefficients)[0]
+                estimated_segments = segmenter(audio_filename,
+                                               sample_rate=None,
+                                               beats_file=ref_beats_fname,
+                                               features=features,
+                                               criteria=criteria,
+                                               coefficients=coefficients)[0]
             else:
-                estimated_segments = CHM.segmenter(audio_filename,
-                                                   sample_rate=None,
-                                                   features=features,
-                                                   criteria=criteria,
-                                                   coefficients=coefficients)[0]
+                estimated_segments = segmenter(audio_filename,
+                                               sample_rate=None,
+                                               features=features,
+                                               criteria=criteria,
+                                               coefficients=coefficients)[0]
 
             # Get ground truth boundaries for evaluation
             reference_segments_fname = os.path.join(
@@ -706,12 +706,11 @@ def harmonix_segmentation_loop(harmonix_dataset_path,
                                       track_filename)
         files_not_found = []
         try:
-            estimated_segments = CHM.segmenter(
-                audio_filename,
-                sample_rate=None,
-                features=features,
-                criteria=criteria,
-                coefficients=coefficients)[0]
+            estimated_segments = segmenter(audio_filename,
+                                           sample_rate=None,
+                                           features=features,
+                                           criteria=criteria,
+                                           coefficients=coefficients)[0]
             # Get ground truth structure for evaluation
             reference_segments_filename = os.path.join(
                 harmonix_dataset_path,
@@ -835,13 +834,13 @@ def DTL1000_segmentation_loop(DTL1000_dataset_path):
                                            'audio',
                                            filenames_list[song_number]
                                            + '.wav')
-                estimated_segments = CHM.segmenter(audio_fname)[0]
+                estimated_segments = segmenter(audio_fname)[0]
             except FileNotFoundError:
                 audio_fname = os.path.join(DTL1000_dataset_path,
                                            'audio',
                                            filenames_list[song_number]
                                            + '.aiff')
-                estimated_segments = CHM.segmenter(audio_fname)[0]
+                estimated_segments = segmenter(audio_fname)[0]
 
         # Get ground truth boundaries for evaluation
         reference_segments_fname = os.path.join(

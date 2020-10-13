@@ -11,22 +11,9 @@ import madmom
 # Local imports
 import estimate_beats
 import estimate_downbeats
-from CHM_utils import (save_segments, save_beats, compute_repetition_criterion,
-                       compute_novelty_criterion, select_boundaries)
-from CHM_features import compute_multi_features_ssm
-
-''' Notes
-Nouvelle version qui se veut aussi modulable que possible
-------------------------------------------------------------------------------
-• Extraction audio au départ (très) fortement inspirée de timbral_extractor
-  de la librairie timbral_models. A voir niveau droit/licence ?
-• Idem voir licence pour compute_SM_dot
-• Partie beat sync à améliorer
-• Faire les en-têtes des fonctions
-• rajouter un paramètre Verbose et/ou visualisation
-• Padding/Stripping des segments avec le 0 et la fin pour être sûr d'être
-  cohérent entre annotations et sortie du segmenter
-'''
+from utils import (save_segments, save_beats, compute_repetition_criterion,
+                   compute_novelty_criterion, select_boundaries)
+from features import compute_multi_features_ssm
 
 
 def segmenter(audio_filename, sample_rate=22050,
@@ -35,7 +22,7 @@ def segmenter(audio_filename, sample_rate=22050,
               criteria=['repetition', 'novelty'],
               coefficients=[1, 1, 1, 1]):
     '''
-    Estimate segments boundaries of a song. Does not estimate labels Based on :
+    Estimate segments boundaries of a song. Does not estimate labels. Based on:
     C. Gaudefroy H. Papadopoulos and M. Kowalski, “A Multi-Dimensional
     Meter-Adaptive Method For Automatic Segmentation Of Music”, in CBMI 2015.
     Default configuration should reproduce the method presented in this paper.
@@ -175,13 +162,17 @@ def segmenter(audio_filename, sample_rate=22050,
     if 'repetition' in criteria:
         for feature_index in range(len(features)):
             segmentation_criterion_matrix[criterion_index, :] = (
-                compute_repetition_criterion(multi_features_ssm[:, :, feature_index]))
+                compute_repetition_criterion(multi_features_ssm[:,
+                                                                :,
+                                                                feature_index]))
             criterion_index += 1
 
     if 'novelty' in criteria:
         for feature_index in range(len(features)):
             segmentation_criterion_matrix[criterion_index, :] = (
-                compute_novelty_criterion(multi_features_ssm[:, :, feature_index]))
+                compute_novelty_criterion(multi_features_ssm[:,
+                                                             :,
+                                                             feature_index]))
             criterion_index += 1
 
     segmentation_criterion_vector = np.sum(
